@@ -1,0 +1,143 @@
+''Local''
+
+Installation of the InfluxDB package may require root or administrator privileges in order to complete successfully.
+* open terminal
+* <code> brew update</code> (For other operating system https://portal.influxdata.com/downloads )
+* <code> brew install influxdb</code>
+
+*Start and connect to Influxdb service
+* <code> brew services start influxdb</code>
+* <code>influxd</code>
+* <code>influx -precision rfc3339</code>
+
+
+''AWS EC2''
+
+For our setup, we will use two volumes, one for the WAL (write-ahead logging) and one for the InfluxDB data.
+
+The general idea is to use a higher IOPS, lower size volume for the WAL and a larger sized, but slower IOPS volume for the data.
+
+* [[Download and install]]
+* <code> wget https://dl.influxdata.com/influxdb/releases/influxdb-1.2.2.x86_64.rpm</code>
+* <code> sudo yum localinstall influxdb-1.2.2.x86_64.rpm</code>
+
+
+*[[Start service]]
+* <code> sudo service influxdb start</code>
+* <code>influxd</code>
+* <code>influx -precision rfc3339</code>
+
+
+*[[Config HTTPS for influxDB]]
+*1.Create a self-signed SSL Certificate or registered for a certified SSL
+::https://msol.io/blog/tech/create-a-self-signed-ssl-certificate-with-openssl/
+*2<code>Cat key.pem certificate.pem > influxdb.pem</code>
+::make the key and certificate together.
+*3.Change setting in influxdb to use the influxdb.pem
+:: <code>sudo vim /etc/influxdb/influxdb.conf</code>
+::Change the following settings
+:: <code>https-enabled = true</code>
+:: <code>https-certificate = "/etc/ssl/influxdb.pem"</code>
+
+
+*[[Authentication]]
+Now that we have InfluxDB ready to be run, we want to enable some form of authentication. Since we’re going to use http based data in-and-out (which is the default mechanism in InfluxDB), we need to enable authentication. We first need to create users before we can enable authentication and hence, we need to connect to the InfluxDB instance with authentication disabled (authentication is turned off by default).
+
+*Connect to influx
+<code>> create user superadmin with password 'my_password' with all privileges</code>
+
+<code>> create user nonadmin with password 'na_password'</code>
+
+<code>> grant all on tsdb_stage to nonadmin</code>
+
+<code>> grant READ on tsdb_prod to nonadmin</code>
+
+<code>> grant WRITE on tsdb_dev to nonadmin</code>
+
+We just created two users, an admin user and a non-admin user. Now, we can enable the authentication and we should be ready to go with our newly setup InfluxDB instance.
+
+<code>>Sudo services influxdb start</code>
+
+<code>>influxd -config /etc/influxdb/influxdb.conf</code>
+
+
+
+
+
+
+
+'''Creating a database'''
+
+Installation of the InfluxDB package may require root or administrator privileges in order to complete successfully.
+* <code>influx -precision rfc3339</code>
+* <code>>CREATE DATABASE blocpower</code>
+* <code>>SHOW DATABASES</code>
+::name: databases
+::---------------
+::name
+::_internal
+::blocpower
+
+*After the database is created, we need to use that database
+* <code>>USE blocpower</code>
+::Using database blocpower
+
+'''Writing and exploring data'''
+
+First, a short primer on the datastore. Data in InfluxDB is organized by “time series”, which contain a measured value, like “cpu_load” or “temperature”. Time series have zero to many points, one for each discrete sample of the metric. Points consist of time (a timestamp), a measurement (“cpu_load”, for example), at least one key-value field (the measured value itself, e.g. “value=0.64”, or “temperature=21.2”), and zero to many key-value tags containing any metadata about the value (e.g. “host=server01”, “region=EMEA”, “dc=Frankfurt”).
+* The sample format for writing data points
+* <code><measurement>[,<tag-key>=<tag-value>...] <field-key>=<field-value>[,<field2-key>=<field2-value>...] [unix-nano-timestamp]</code>
+::cpu,host=serverA,region=us_west value=0.64
+::payment,device=mobile,product=Notepad,method=credit billed=33,licenses=3i 1434067467100293230
+::stock,symbol=AAPL bid=127.46,ask=127.48
+::temperature,machine=unit42,type=assembly external=25,internal=37 1434067467000000000
+* Insert and Select
+* <code>>INSERT cpu,host=serverA,region=us_west value=0.64</code>
+* <code>>SELECT "host", "region", "value" FROM "cpu"</code>
+::name: cpu
+::---------
+::time		    	                     host     	region   value
+::2015-10-21T19:28:07.580664347Z  serverA	  us_west	 0.64
+
+
+
+InfluxQL has many features and keywords that are not covered here, including support for Go-style regex. For example:
+* <code>> SELECT * FROM /.*/ LIMIT 1</code>
+::--
+* <code>> SELECT * FROM "cpu_load_short"</code>
+::--
+* <code>> SELECT * FROM "cpu_load_short" WHERE "value" > 0.9</code>
+
+
+
+
+
+Data warehouse databases commonly use a star schema design, in which a central fact table contains the core data for the database and several dimension tables provide descriptive attribute information for the fact table. The fact table joins each dimension table on a foreign key that matches the dimension's primary key.
+
+
+'''Creating a database'''
+
+For example, to create a database named blocpower, issue the following command:
+* <code>create database tickit;</code>
+
+'''Creating a User'''
+
+For example, to create a user named blocpower with password ABCd4321, issue the following command:
+* <code>create user blocpower password 'ABCd4321';</code>
+
+'''Create a Database Table'''
+
+For example, to create a table named building with a single column named buildingid for an integer data type, issue the following command:
+* <code>create table building (buildingid int);</code>
+::The PG_TABLE_DEF system table contains information about all the tables in the cluster. To verify the result, issue the following SELECT command to query the PG_TABLE_DEF system table.
+::<code>select * from pg_table_def where tablename = 'blocpower';</code>
+
+'''Insert Data Rows into a Table'''
+
+For example, to insert a value of 100 into the blocpower table (which contains a single column), issue the following command:
+*<code>insert into blocpower values (100);</code>
+
+'''Select Data from a Table'''
+
+To view the data that you entered in the blocpower table, issue the following command:
+*<code>select * from testtable;</code>
